@@ -41,21 +41,33 @@ export async function getCharacters(page: number): Promise<CharacterListResponse
   return res.json();
 }
 
-// Detalle: se revalida cada 10 días (ISR)
-export async function getCharacter(id: string): Promise<Character | null> {
-  const res = await fetchWithRetry(`${API_URL}/${id}`, { next: { revalidate: TEN_DAYS } });
+const PAGE_SIZE = 20;
+
+// Página de la API con revalidación cada 10 días (ISR). Cada página trae 20 personajes,
+// así que todas las fichas comparten solo 42 peticiones en lugar de una por personaje.
+async function getCharacterPage(page: number): Promise<CharacterListResponse | null> {
+  const res = await fetchWithRetry(`${API_URL}?page=${page}`, { next: { revalidate: TEN_DAYS } });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error('Error al cargar el personaje');
+  if (!res.ok) throw new Error('Error al cargar los personajes');
   return res.json();
+}
+
+// Detalle: busca al personaje dentro de su página, que se revalida cada 10 días (ISR)
+export async function getCharacter(id: string): Promise<Character | null> {
+  const characterId = Number(id);
+  if (!Number.isInteger(characterId) || characterId < 1) return null;
+
+  const data = await getCharacterPage(Math.ceil(characterId / PAGE_SIZE));
+  return data?.results.find((character) => character.id === characterId) ?? null;
 }
 
 // Obtiene los id de todos los personajes recorriendo todas las páginas de la API
 export async function getAllCharacterIds(): Promise<string[]> {
-  const first = await getCharacters(1);
+  const first = await getCharacterPage(1);
   if (!first) return [];
 
   const pages = await Promise.all(
-    Array.from({ length: first.info.pages - 1 }, (_, i) => getCharacters(i + 2))
+    Array.from({ length: first.info.pages - 1 }, (_, i) => getCharacterPage(i + 2))
   );
 
   return [first, ...pages]

@@ -14,10 +14,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    // Menos páginas en paralelo durante el build para no saturar la API de Rick and Morty
-    staticGenerationMaxConcurrency: 2,
-  },
   turbopack: {
     rules: {
       "*.css": {
